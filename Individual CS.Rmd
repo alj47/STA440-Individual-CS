@@ -1,0 +1,236 @@
+---
+title: "Individual CS"
+author: "Austin Jia"
+date: "11/28/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Libraries
+
+```{r, echo = FALSE, include = FALSE}
+# Installing packages
+pkgTest <- function(x) {
+  if (!require(x,character.only = TRUE)) {
+    install.packages(x,dep=TRUE)
+  }
+}
+pkgs <- c("jsonlite", "dplyr", "rvest", "purrr", "ggplot2", "gganimate", "ggthemes", "lubridate", "zoo", "shiny", "stringr")
+for (pkg in pkgs) {
+  pkgTest(pkg)
+}
+```
+
+```{r, include=FALSE, echo = FALSE}
+library(jsonlite)
+library(dplyr)
+library(rvest)
+library(purrr)
+library(ggplot2)
+library(gganimate)
+library(ggthemes)
+library(lubridate)
+library(zoo)
+library(shiny)
+library(stringr)
+```
+
+### Scraping
+
+Reference websites:
+https://stackoverflow.com/questions/29828319/adding-a-column-with-consecutive-numbers-in-r
+https://stackoverflow.com/questions/39975317/how-to-reverse-the-order-of-a-dataframe-in-r
+
+```{R}
+#Using rvest for company overview section
+base_url = "https://data.cityofnewyork.us/Education/2016-2017-School-Quality-Report-Elem-Middle-K-8-Sc/9n2i-9h9s/data"
+
+base_url
+
+p = read_html(base_url)
+
+school_quality = tibble(
+  "Student Achievement Rating" = p %>%
+    html_nodes()
+)
+
+company_overview = tibble(
+  "Company" = p %>%
+    html_nodes(".table-responsive:nth-child(7) tr+ tr td:nth-child(1)") %>%
+    html_text(),
+  "Cash (in billions)" = p %>%
+    html_nodes(".table-responsive:nth-child(7) tr+ tr td:nth-child(2)") %>%
+    html_text() %>%
+    str_remove("^\\$") %>%
+    str_replace("billion", "") %>%
+    as.numeric(),
+  "Debt (in billions)" = p %>%
+    html_nodes(".table-responsive:nth-child(7) tr+ tr td:nth-child(3)") %>%
+    html_text() %>%
+    str_remove("^\\$") %>%
+    str_replace("billion", "") %>%
+    as.numeric(),
+  "Free Cash Flow (in billions)" = p %>%
+    html_nodes(".table-responsive:nth-child(7) tr+ tr td:nth-child(4)") %>%
+    html_text() %>%
+    str_remove("^\\$") %>%
+    str_replace("billion", "") %>%
+    as.numeric(),
+  "Price to Earnings Ratio" = p %>%
+    html_nodes(".table-responsive:nth-child(15) tr+ tr td:nth-child(2)") %>%
+    html_text() %>%
+    as.numeric(),
+  "Price to FCF Ratio" = p %>%
+    html_nodes(".table-responsive:nth-child(15) tr+ tr td:nth-child(3)") %>%
+    html_text() %>%
+    as.numeric(),
+  "P/E to Growth Ratio" = p %>%
+    html_nodes(".table-responsive:nth-child(15) tr+ tr td:nth-child(4)") %>%
+    html_text() %>%
+    as.numeric()
+) 
+company_overview
+```
+
+
+### Old example
+
+```{r}
+base_url_1 = "https://www.fool.com/investing/2018/07/26/better-buy-apple-inc-aapl-vs-facebook-inc-fb.aspx"
+p = read_html(base_url_1)
+company_overview = tibble(
+  "Company" = p %>%
+    html_nodes(".table-responsive:nth-child(7) tr+ tr td:nth-child(1)") %>%
+    html_text(),
+  "Cash (in billions)" = p %>%
+    html_nodes(".table-responsive:nth-child(7) tr+ tr td:nth-child(2)") %>%
+    html_text() %>%
+    str_remove("^\\$") %>%
+    str_replace("billion", "") %>%
+    as.numeric(),
+  "Debt (in billions)" = p %>%
+    html_nodes(".table-responsive:nth-child(7) tr+ tr td:nth-child(3)") %>%
+    html_text() %>%
+    str_remove("^\\$") %>%
+    str_replace("billion", "") %>%
+    as.numeric(),
+  "Free Cash Flow (in billions)" = p %>%
+    html_nodes(".table-responsive:nth-child(7) tr+ tr td:nth-child(4)") %>%
+    html_text() %>%
+    str_remove("^\\$") %>%
+    str_replace("billion", "") %>%
+    as.numeric(),
+  "Price to Earnings Ratio" = p %>%
+    html_nodes(".table-responsive:nth-child(15) tr+ tr td:nth-child(2)") %>%
+    html_text() %>%
+    as.numeric(),
+  "Price to FCF Ratio" = p %>%
+    html_nodes(".table-responsive:nth-child(15) tr+ tr td:nth-child(3)") %>%
+    html_text() %>%
+    as.numeric(),
+  "P/E to Growth Ratio" = p %>%
+    html_nodes(".table-responsive:nth-child(15) tr+ tr td:nth-child(4)") %>%
+    html_text() %>%
+    as.numeric()
+) 
+company_overview
+```
+
+### Yellow Pages ExMPLE
+
+```{r}
+count = 0
+
+for(numPage in 1:2){
+
+        # Create and read the page address
+        page = paste('https://data.cityofnewyork.us/Education/2016-2017-School-Quality-Report-Elem-Middle-K-8-Sc/9n2i-9h9s/data/?page', '=', numPage)
+        nPage <- str_replace_all(page, pattern=" ", repl="")
+
+        # Read the 20 items of each the page
+        for(numItem in 1:5){
+
+                print(paste(' -- Reading the item', numItem, ' on page', numPage))
+
+                item =  paste('item', numItem, sep = "", collapse = NULL)
+                xPath <- paste('//*[@id=',item, ']', sep = "'", collapse = NULL)
+
+                # read the path
+                readPath <- nPage %>% read_html() %>% html_nodes(xpath = xPath)
+
+                # Get values
+                student_achievement_rating  <- readPath %>% html_nodes("td:nth-child(11) div") %>% html_text(trim = TRUE)
+                
+                print(student_achievement_rating)
+                
+                lengthStudentachievementrating <- length(student_achievement_rating)
+                
+                print(lengthStudentachievementrating)
+
+                enrollment <- readPath %>% html_nodes("td:nth-child(4) div") %>% html_text(trim = TRUE)
+                lengthEnrollment <- length(enrollment)
+
+                school_type <- readPath %>% html_nodes("td:nth-child(3) div") %>% html_text(trim = TRUE)
+                lengthSchooltype <- length(school_type)
+
+                if(lengthStudentachievementrating == 0){
+
+                        student_achievement_rating = 'NA'
+
+                }
+
+                if(lengthEnrollment == 0){
+
+                        enrollment = 'NA'
+
+                }
+
+                if(lengthSchooltype == 0){
+
+                        school_type = 'NA'
+
+                }
+
+                # Store variables
+                if(count == 0){
+
+                        vectorStudentachievementrating <- student_achievement_rating
+                        vectorEnrollment <- enrollment
+                        vectorSchooltype <- school_type
+                }else{
+
+                        vectorStudentachievementrating <- c(vectorStudentachievementrating, student_achievement_rating)
+                        vectorEnrollment <- c(vectorEnrollment, enrollment)
+                        vectorSchooltype <- c(vectorSchooltype, school_type)
+
+                }
+
+
+                count = count + 1
+
+        }
+
+
+}
+
+
+df <- data.frame(vectorStudentachievementrating, vectorEnrollment, vectorSchooltype)
+
+df
+```
+
+
+
+
+### Cleaning
+
+### EDA
+
+### Visualizaitons (R Shiny)
+
+### Modeling
+
+### Conclusions
