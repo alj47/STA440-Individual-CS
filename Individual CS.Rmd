@@ -18,7 +18,7 @@ pkgTest <- function(x) {
     install.packages(x,dep=TRUE)
   }
 }
-pkgs <- c("jsonlite", "dplyr", "rvest", "purrr", "ggplot2", "gganimate", "ggthemes", "lubridate", "zoo", "shiny", "stringr")
+pkgs <- c("jsonlite", "dplyr", "rvest", "purrr", "ggplot2", "gganimate", "ggthemes", "lubridate", "zoo", "shiny", "stringr", "mice")
 for (pkg in pkgs) {
   pkgTest(pkg)
 }
@@ -36,110 +36,28 @@ library(lubridate)
 library(zoo)
 library(shiny)
 library(stringr)
+library(mice)
 ```
 
 ### Scraping
+### Page by page method
 
-Reference websites:
-https://stackoverflow.com/questions/29828319/adding-a-column-with-consecutive-numbers-in-r
-https://stackoverflow.com/questions/39975317/how-to-reverse-the-order-of-a-dataframe-in-r
-
-```{R}
-#Using rvest for company overview section
+```{r}
 base_url = "https://data.cityofnewyork.us/Education/2016-2017-School-Quality-Report-Elem-Middle-K-8-Sc/9n2i-9h9s/data"
-
-base_url
-
 p = read_html(base_url)
 
 school_quality = tibble(
   "Student Achievement Rating" = p %>%
-    html_nodes()
-)
-
-company_overview = tibble(
-  "Company" = p %>%
-    html_nodes(".table-responsive:nth-child(7) tr+ tr td:nth-child(1)") %>%
-    html_text(),
-  "Cash (in billions)" = p %>%
-    html_nodes(".table-responsive:nth-child(7) tr+ tr td:nth-child(2)") %>%
-    html_text() %>%
-    str_remove("^\\$") %>%
-    str_replace("billion", "") %>%
-    as.numeric(),
-  "Debt (in billions)" = p %>%
-    html_nodes(".table-responsive:nth-child(7) tr+ tr td:nth-child(3)") %>%
-    html_text() %>%
-    str_remove("^\\$") %>%
-    str_replace("billion", "") %>%
-    as.numeric(),
-  "Free Cash Flow (in billions)" = p %>%
-    html_nodes(".table-responsive:nth-child(7) tr+ tr td:nth-child(4)") %>%
-    html_text() %>%
-    str_remove("^\\$") %>%
-    str_replace("billion", "") %>%
-    as.numeric(),
-  "Price to Earnings Ratio" = p %>%
-    html_nodes(".table-responsive:nth-child(15) tr+ tr td:nth-child(2)") %>%
-    html_text() %>%
-    as.numeric(),
-  "Price to FCF Ratio" = p %>%
-    html_nodes(".table-responsive:nth-child(15) tr+ tr td:nth-child(3)") %>%
-    html_text() %>%
-    as.numeric(),
-  "P/E to Growth Ratio" = p %>%
-    html_nodes(".table-responsive:nth-child(15) tr+ tr td:nth-child(4)") %>%
-    html_text() %>%
-    as.numeric()
+    html_nodes("td:nth-child(11) div") %>%
+    html_text()
 ) 
-company_overview
+school_quality
 ```
 
 
-### Old example
 
-```{r}
-base_url_1 = "https://www.fool.com/investing/2018/07/26/better-buy-apple-inc-aapl-vs-facebook-inc-fb.aspx"
-p = read_html(base_url_1)
-company_overview = tibble(
-  "Company" = p %>%
-    html_nodes(".table-responsive:nth-child(7) tr+ tr td:nth-child(1)") %>%
-    html_text(),
-  "Cash (in billions)" = p %>%
-    html_nodes(".table-responsive:nth-child(7) tr+ tr td:nth-child(2)") %>%
-    html_text() %>%
-    str_remove("^\\$") %>%
-    str_replace("billion", "") %>%
-    as.numeric(),
-  "Debt (in billions)" = p %>%
-    html_nodes(".table-responsive:nth-child(7) tr+ tr td:nth-child(3)") %>%
-    html_text() %>%
-    str_remove("^\\$") %>%
-    str_replace("billion", "") %>%
-    as.numeric(),
-  "Free Cash Flow (in billions)" = p %>%
-    html_nodes(".table-responsive:nth-child(7) tr+ tr td:nth-child(4)") %>%
-    html_text() %>%
-    str_remove("^\\$") %>%
-    str_replace("billion", "") %>%
-    as.numeric(),
-  "Price to Earnings Ratio" = p %>%
-    html_nodes(".table-responsive:nth-child(15) tr+ tr td:nth-child(2)") %>%
-    html_text() %>%
-    as.numeric(),
-  "Price to FCF Ratio" = p %>%
-    html_nodes(".table-responsive:nth-child(15) tr+ tr td:nth-child(3)") %>%
-    html_text() %>%
-    as.numeric(),
-  "P/E to Growth Ratio" = p %>%
-    html_nodes(".table-responsive:nth-child(15) tr+ tr td:nth-child(4)") %>%
-    html_text() %>%
-    as.numeric()
-) 
-company_overview
-```
 
-### Yellow Pages ExMPLE
+### Yellow Pages Method
 
 ```{r}
 count = 0
@@ -151,18 +69,18 @@ for(numPage in 1:2){
         nPage <- str_replace_all(page, pattern=" ", repl="")
 
         # Read the 20 items of each the page
-        for(numItem in 1:5){
+        for(numItem in 1:3){
 
                 print(paste(' -- Reading the item', numItem, ' on page', numPage))
 
                 item =  paste('item', numItem, sep = "", collapse = NULL)
-                xPath <- paste('//*[@id=',item, ']', sep = "'", collapse = NULL)
+                xPath <- paste("//*[@id=',item, ']", sep = "'", collapse = NULL)
 
                 # read the path
                 readPath <- nPage %>% read_html() %>% html_nodes(xpath = xPath)
 
                 # Get values
-                student_achievement_rating  <- readPath %>% html_nodes("td:nth-child(11) div") %>% html_text(trim = TRUE)
+                student_achievement_rating  <- readPath %>% html_nodes(".table-responsive:nth-child(7) td:nth-child(11) div") %>% html_text(trim = TRUE)
                 
                 print(student_achievement_rating)
                 
@@ -222,15 +140,134 @@ df <- data.frame(vectorStudentachievementrating, vectorEnrollment, vectorSchoolt
 df
 ```
 
+### Data 
+
+```{r}
+data <- read.csv("schooldata.csv")
+
+data = data %>% 
+  rename(
+    Instruction.Rating = Rigorous.Instruction.Rating,
+    Teachers.Rating = Collaborative.Teachers.Rating,
+    Leadership.Rating = Effective.School.Leadership.Rating,
+    Community.Ties.Rating = Strong.Family.Community.Ties.Rating,
+    Instruction.Rating.pct = Rigorous.Instruction...Percent.Positive,
+    Teachers.Rating.pct = Collaborative.Teachers...Percent.Positive,
+    Supportive.Environment.pct = Supportive.Environment...Percent.Positive,
+    Leadership.Rating.pct = Effective.School.Leadership...Percent.Positive,
+    Community.Ties.Rating.pct = Strong.Family.Community.Ties...Percent.Positive,
+    Challenging.Curriculum.qr = Quality.Review...How.interesting.and.challenging.is.the.curriculum.,
+    Effective.Teaching.qr = Quality.Review...How.effective.is.the.teaching.and.learning.,
+    School.Assess.qr = Quality.Review...How.well.does.the.school.assess.what.students.are.learning.,
+    Expectations.Communicated.qr = Quality.Review...How.clearly.are.high.expectations.communicated.to.students.and.staff.,
+    Teachers.Cooperation.qr = Quality.Review...How.well.do.teachers.work.with.each.other.,
+    Safe.Inclusive.qr = Quality.Review...How.safe.and.inclusive.is.the.school.while.supporting.social.emotional.growth.,
+    Resource.Allocation.qr = Quality.Review...How.well.does.the.school.allocate.and.manage.resources.,
+    Meet.Goals.qr = Quality.Review...How.well.does.the.school.identify..track..and.meet.its.goals.,
+    Teacher.Development.qr = Quality.Review...How.thoughtful.is.the.school.s.approach.to.teacher.development.and.evaluation.,
+    Decisions.Evaluated.qr = Quality.Review...How.well.are.school.decisions.evaluated.and.adjusted.,
+    Review.Dates.qr = Quality.Review...Dates.of.Review,
+    ELA.Proficiency = Average.Incoming.ELA.Proficiency..Based.on.4th.Grade.,
+    Math.Proficiency = Average.Incoming.Math.Proficiency..Based.on.4th.Grade.,
+    Principal.Experience.yrs = Years.of.principal.experience.at.this.school, 
+    Teachers.3yrs.Experience = Percent.of.teachers.with.3.or.more.years.of.experience,
+    Students.Chronically.Absent = Percent.of.Students.Chronically.Absent
+    )
+```
+
+### EDA - General
+
+```{r}
+
+```
+
+### EDA - Missing Data
+
+```{r}
+sum(is.na(data)) / (dim(data)[1] * dim(data)[2])
+nrow(data[complete.cases(data), ])
+nrow(data[complete.cases(data), ])/nrow(data)
+```
+
+```{r}
+missing.prop <- apply(data, MARGIN = 2, FUN = function(x) { sum(is.na(x)) })
+missing.prop <- missing.prop / dim(data)[1]
+missing.prop <- data.frame("prop" = missing.prop,
+                           "var" = names(data))
+ggplot(missing.prop, aes(x = reorder(var, -prop), y = prop)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) + 
+  geom_col(colour = "black", fill = "#FF6666") + 
+  xlab("Covariate") + 
+  ylab("Proportion Missing") +
+  ggtitle("The Proportion of Missing Values for Each Covariate")
+```
+
+Some initial data exploration tells us that our data is missing about 4% of its values. That 4% missing data is distributed in such a way that only 27% of our observations (345 schools) have complete information. The plot showcases some of the most problematic covariates in terms of missing data. 
+
+We suspected that the Economic Need Index might have some effect on the presence of several key variables in the dataset. Firstly, we observed that there are no data points missing with the Year of Cardiac Catherization variable.Because we have no missing values of the Economic Need Index variable, margin plots will not make sense here because there will not exist a subset of the data for which the variable is missing. We will look at the distribution of present/missing data across time for the top 2 covariates with the largest missing proportion. 
+
+```{r}
+#Not MCAR
+
+g1 <-ggplot(data, aes(x=Economic.Need.Index, fill = !is.na(ELA.Proficiency), color = !is.na(ELA.Proficiency))) + geom_histogram(position = "identity",alpha = 0.5, bins=7) + labs(fill = "ELA Proficiency Present") + guides(color=FALSE) + ggtitle("Distribution of ELA Proficiency Present In Data Across Time")
+
+g2 <-ggplot(data, aes(x=Economic.Need.Index, fill = !is.na(Math.Proficiency), color = !is.na(ELA.Proficiency))) + geom_histogram(position = "identity",alpha = 0.5, bins=7) + labs(fill = "ELA Proficiency Present") + guides(color=FALSE) + ggtitle("Distribution of ELA Proficiency Present In Data Across Time")
+
+g1
+g2
+```
+
+Looking at the distributions, we can see that the missngness of Math and ELA proficiency seems very different depending on the economic need index, indicating that the covariates are not MCAR. This could be because students of higher economic need are unable to afford the educational and academic prep resources needed to perform well in Math and ELA. 
+
+To avoid complete case analysis and other ways of dealing with missing data that would systematically change the distribution of our outcome patterns and thus bias our analysis results, we turn to Multiple Imputation methods to instead generate conditional distributions on the missingness of our data. 
+
+We used mean/mode imputation to impute the covariates that were missing values within the threshold of 0% to 5%. This is because the results of doing mean imputation in covariates with only a small amount of missing values will not differ significantly from doing MICE on all covariates, which would have taken a lot more time. In the graph below, we can see that after doing mean imputation on the covariates missing small amounts of data, only the covariates missing significant amounts of data are left. We will use MICE to perform imputation with these covariates.
+
+```{r, include=FALSE}
+# Mean imputation
+calc.mode <- function(x) {
+  ux <- na.omit(unique(x))
+  ux[which.max(tabulate(match(x, ux)))]
+}
+impute_covariates <- as.character(missing.prop[(missing.prop$prop <= 0.1) & (missing.prop$prop > 0), ]$var)
+data2 <- as.data.frame(data)
+for (var in impute_covariates) {
+  print(var)
+  if (is.factor(data2[[var]])) {
+    data2[is.na(mean_impute[[var]]), var] <- calc.mode(data2[[var]])
+  } else {
+    data2[is.na(data2[[var]]), var] <- mean(data2[[var]], na.rm = TRUE)
+  }
+}
+
+
+```
+
+We used MICE, or Multiple Imputation using Chained Equations, to created our imputed datasets. We created 4 imputed datasets, roughly corresponding to the percent of missing data. 
+
+```{r, include=FALSE}
+if (!file.exists("mice.rds")) {
+  start_time <- Sys.time()
+  data3 <- parlmice(data2, m=4, printFlag=FALSE, maxit = 5,
+                  cluster.seed=123, n.code = 2, cl.type = "FORK")
+  end_time <- Sys.time()
+  end_time - start_time
+} else {
+  data3 <- readRDS("mice.rds")
+}
+
+data3 <- parlmice(data2, m=1, printFlag=TRUE, maxit = 2,
+                  cluster.seed=123, n.code = 2, cl.type = "FORK")
+```
 
 
 
-### Cleaning
-
-### EDA
-
-### Visualizaitons (R Shiny)
 
 ### Modeling
+
+### Model Selection
+
+### Visualizaitons (R Shiny)
 
 ### Conclusions
