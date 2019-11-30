@@ -18,7 +18,7 @@ pkgTest <- function(x) {
     install.packages(x,dep=TRUE)
   }
 }
-pkgs <- c("jsonlite", "dplyr", "rvest", "purrr", "ggplot2", "gganimate", "ggthemes", "lubridate", "zoo", "shiny", "stringr", "mice", "VIM", "parallel", "corrplot", "MASS")
+pkgs <- c("jsonlite", "dplyr", "rvest", "purrr", "ggplot2", "gganimate", "ggthemes", "lubridate", "zoo", "shiny", "stringr", "mice", "VIM", "parallel", "corrplot", "MASS", "caTools", "nnet", "randomForest", "pROC", "caret")
 for (pkg in pkgs) {
   pkgTest(pkg)
 }
@@ -42,6 +42,10 @@ library(parallel)
 library(corrplot)
 library(MASS)
 library(caTools)
+library(nnet)
+library(randomForest)
+library(pROC)
+library(caret)
 ```
 
 ### Scraping
@@ -145,7 +149,7 @@ df <- data.frame(vectorStudentachievementrating, vectorEnrollment, vectorSchoolt
 df
 ```
 
-### Data 
+### Data Cleaning
 
 ```{r}
 data <- read.csv("schooldata.csv")
@@ -179,20 +183,41 @@ data = data %>%
     Teachers.3yrs.Experience = Percent.of.teachers.with.3.or.more.years.of.experience,
     Students.Chronically.Absent = Percent.of.Students.Chronically.Absent
     )
+#
 
 #Replacing blank levels with NAs
 data <- data %>% mutate_if(is.factor, list(~factor(replace(., .=="", NA))))
+```
 
-#Removing Collinear/Redundant Data
+
+```{r}
+# Response Variable
+data$Student.Achievement.Rating <- factor(data$Student.Achievement.Rating,levels = c("Not Meeting Target", "Approaching Target", "Meeting Target", "Exceeding Target", "NA"))
+
+g1 = ggplot(data, aes(factor(Student.Achievement.Rating),fill = Student.Achievement.Rating)) +
+geom_bar(stat="count", position = "dodge") + 
+scale_fill_brewer(palette = "Set1") + ggtitle("Student Achievement Rating Distribution") + xlab("Student Achievement Rating") + labs(fill = "Target Category") + theme(axis.text.x=element_text(angle=45, hjust=1))
+
+#Combining Factor Levels
+levels(data$Student.Achievement.Rating) <- list("Meeting Target"=c("Meeting Target", "Exceeding Target"), "Not Meeting Target"=c("Not Meeting Target", "Approaching Target"))
+```
+
+I merged the four response categories of "Not Meeting Target", "Approaching Target", "Meeting Target", and "Exceeding Target" into a binary "Not Meeting Target" and "Meeting Target". I did this for a couple reasons. First, this simplifies the classification problem down from multinomial logistic regression to binary logistic regression, which features simpler interpretations. Second, "Not Meeting Target" only had 39 occurences; with so many predictors, my model would surely have low power. Finally, while it is nice to have a gradient of exceptional to mediocre schools, from a policymaker's perspective, it is more expedient to allocate a budget to all schools that fall below a certain threshold. 
+
+```{r}
+#Explanatory Variables
+
+#Collinearity Matrix
 data_numeric = data[ , purrr::map_lgl(data, is.numeric)]
 corrplot(cor(data_numeric, use="pairwise.complete.obs"), method = "circle", tl.cex=0.5)
 
-redundant_cols = c("Instruction.Rating", "Supportive.Environment.Rating", "Community.Ties.Rating", "Teachers.Rating", "Leadership.Rating", "Trust.Rating")
+#Removing Covariates
+redundant_cols = c("Instruction.Rating", "Supportive.Environment.Rating", "Community.Ties.Rating", "Teachers.Rating", "Leadership.Rating", "Trust.Rating", "DBN", "Percent.HRA.Eligible", "Effective.Teaching.qr", "Expectations.Communicated.qr", "Safe.Inclusive.qr", "Meet.Goals.qr", "Decisions.Evaluated.qr", "Challenging.Curriculum.qr", "School.Assess.qr", "Teachers.Cooperation.qr", "Resource.Allocation.qr", "Teacher.Development.qr", "Review.Dates.qr", "Students.Chronically.Absent", "Percent.in.Temp.Housing")
 data = data[ , -which(names(data) %in% redundant_cols)]
 colnames(data)
 ```
-I removed all the columns that included subjective ratings for collinearity reasons. For example, Supportive.Environment.Rating, which categorizes the supportiveness of a school's environment, would be highly collinear with Supportive.Environment.Rating.pct, which captures the percent of the school population that believes that the school's environment is supportive. 
 
+I decided to remove the above covariates for a couple reasons. First, as the correlation matrix demonstrates, there is high correlation between several rating metrics and economic need proxies, so I eliminated all but one to address collinearity and reduce variance. For example, Supportive.Environment.Rating and Supportive.Environment.Rating.pct measure the same metric in different formats, and percent in temporary housing and percent HRA elgible are both proxies for economic need. Second, as the regression "one-in-ten" rule-of-thumb dictates, I should have at most one predictor for every 10 response-variable combinations. Third, I removed all the Quality Review covariates because (1) they are likely highly correlated with each other, (2) the data dictionary does not define what constitutes such subjective evaluation metrics, and (3) these metrics are likely highly inconsistent from school to school, so I felt that they did not add much value to the model
 
 ### Missing Data
 
@@ -216,7 +241,7 @@ ggplot(missing.prop, aes(x = reorder(var, -prop), y = prop)) +
   ggtitle("The Proportion of Missing Values for Each Covariate")
 ```
 
-Some initial data exploration tells us that our data is missing about 16% of its values. That 16% missing data is distributed in such a way that only 10% of our observations (123 schools) have complete information. The plot showcases some of the most problematic covariates in terms of missing data. 
+Some initial data exploration tells us that our data is missing about 8% of its values. That 8% missing data is distributed in such a way that only 26% of our observations (336 schools) have complete information. The plot showcases some of the most problematic covariates in terms of missing data. 
 
 We suspected that the Economic Need Index might have some effect on the presence of several key variables in the dataset. Firstly, we observed that there are no data points missing with the Year of Cardiac Catherization variable.Because we have no missing values of the Economic Need Index variable, margin plots will not make sense here because there will not exist a subset of the data for which the variable is missing. We will look at the distribution of present/missing data across time for the top 2 covariates with the largest missing proportion. 
 
@@ -232,7 +257,7 @@ Looking at the distributions, we can see that the missngness of Math and ELA pro
 
 To avoid complete case analysis and other ways of dealing with missing data that would systematically change the distribution of our outcome patterns and thus bias our analysis results, we turn to Multiple Imputation methods to instead generate conditional distributions on the missingness of our data. 
 
-We used mean/mode imputation to impute the covariates that were missing values within the threshold of 0% to 5%. This is because the results of doing mean imputation in covariates with only a small amount of missing values will not differ significantly from doing MICE on all covariates, which would have taken a lot more time. In the graph below, we can see that after doing mean imputation on the covariates missing small amounts of data, only the covariates missing significant amounts of data are left. We will use MICE to perform imputation with these covariates.
+We used mean/mode imputation to impute the covariates that were missing values within the threshold of 0% to 10%. This is because the results of doing mean imputation in covariates with only a small amount of missing values will not differ significantly from doing MICE on all covariates, which would have taken a lot more time. In the graph below, we can see that after doing mean imputation on the covariates missing small amounts of data, only the covariates missing significant amounts of data are left. We will use MICE to perform imputation with these covariates.
 
 ```{r, include=FALSE}
 #Mean imputation 
@@ -258,89 +283,74 @@ if (!file.exists("mice.rds")) {
 } else {
   data3 <- readRDS("mice.rds")
 }
+
+data3 <- parlmice(data2, m=2, printFlag=TRUE, maxit = 2,
+                  cluster.seed=123, n.core = 2, n.imp.core = 2, cl.type = "FORK")
 ```
 
 ### EDA - General
 
 ```{r}
 #Response Variable
-data2$Student.Achievement.Rating <- factor(data2$Student.Achievement.Rating,levels = c("Not Meeting Target", "Approaching Target", "Meeting Target", "Exceeding Target", "NA"))
-
-g1 = ggplot(data2, aes(factor(Student.Achievement.Rating),fill = Student.Achievement.Rating)) +
+g2 = ggplot(data2, aes(factor(Student.Achievement.Rating),fill = Student.Achievement.Rating)) +
 geom_bar(stat="count", position = "dodge") + 
 scale_fill_brewer(palette = "Set1") + ggtitle("Student Achievement Rating Distribution") + xlab("Student Achievement Rating") + labs(fill = "Target Category") + theme(axis.text.x=element_text(angle=45, hjust=1))
 
-g1
-
 #Racial Breakdown
-g2 = ggplot(data2,aes(x=Percent.Asian,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
+g3 = ggplot(data2,aes(x=Percent.Asian,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
   geom_vline(aes(xintercept=mean(Percent.Asian[Student.Achievement.Rating=="Not Meeting Target"],na.rm=T)),color="red",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Percent.Asian[Student.Achievement.Rating=="Approaching Target"],na.rm=T)),color="blue",linetype="dashed",lwd=1)+
   geom_vline(aes(xintercept=mean(Percent.Asian[Student.Achievement.Rating=="Meeting Target"],na.rm=T)),color="green",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Percent.Asian[Student.Achievement.Rating=="Exceeding Target"],na.rm=T)),color="purple",linetype="dashed",lwd=1)+
   scale_x_continuous(breaks = seq(8,15,1))+
   xlab(label = "Percent Asian")+
   ggtitle("Distribution of Percentage Asian")+
   theme_classic() + labs(fill = "Student Achievement Rating")
 
-g2
+g3
 
-g3 = ggplot(data2,aes(x=Percent.Hispanic,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
+g4 = ggplot(data2,aes(x=Percent.Hispanic,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
   geom_vline(aes(xintercept=mean(Percent.Hispanic[Student.Achievement.Rating=="Not Meeting Target"],na.rm=T)),color="red",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Percent.Hispanic[Student.Achievement.Rating=="Approaching Target"],na.rm=T)),color="blue",linetype="dashed",lwd=1)+
   geom_vline(aes(xintercept=mean(Percent.Hispanic[Student.Achievement.Rating=="Meeting Target"],na.rm=T)),color="green",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Percent.Hispanic[Student.Achievement.Rating=="Exceeding Target"],na.rm=T)),color="purple",linetype="dashed",lwd=1)+
   scale_x_continuous(breaks = seq(8,15,1))+
   xlab(label = "Percent Hispanic")+
   ggtitle("Distribution of Percentage Hispanic")+
   theme_classic()+ labs(fill = "Student Achievement Rating")
 
-g4 = ggplot(data2,aes(x=Percent.Asian,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
+g5 = ggplot(data2,aes(x=Percent.Asian,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
   geom_vline(aes(xintercept=mean(Percent.Asian[Student.Achievement.Rating=="Not Meeting Target"],na.rm=T)),color="red",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Percent.Asian[Student.Achievement.Rating=="Approaching Target"],na.rm=T)),color="blue",linetype="dashed",lwd=1)+
   geom_vline(aes(xintercept=mean(Percent.Asian[Student.Achievement.Rating=="Meeting Target"],na.rm=T)),color="green",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Percent.Asian[Student.Achievement.Rating=="Exceeding Target"],na.rm=T)),color="purple",linetype="dashed",lwd=1)+
   scale_x_continuous(breaks = seq(8,15,1))+
   xlab(label = "Percent Asian")+
   ggtitle("Distribution of Percentage Asian")+
   theme_classic()+ labs(fill = "Student Achievement Rating")
 
-g5 = ggplot(data2,aes(x=Percent.Black,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
+g6 = ggplot(data2,aes(x=Percent.Black,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
   geom_vline(aes(xintercept=mean(Percent.Black[Student.Achievement.Rating=="Not Meeting Target"],na.rm=T)),color="red",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Percent.Black[Student.Achievement.Rating=="Approaching Target"],na.rm=T)),color="blue",linetype="dashed",lwd=1)+
   geom_vline(aes(xintercept=mean(Percent.Black[Student.Achievement.Rating=="Meeting Target"],na.rm=T)),color="green",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Percent.Black[Student.Achievement.Rating=="Exceeding Target"],na.rm=T)),color="purple",linetype="dashed",lwd=1)+
   scale_x_continuous(breaks = seq(8,15,1))+
   xlab(label = "Percent Black")+
   ggtitle("Distribution of Percentage Black")+
   theme_classic()+ labs(fill = "Student Achievement Rating")
 
-g6 = ggplot(data2,aes(x=Percent.White,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
+g7 = ggplot(data2,aes(x=Percent.White,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
   geom_vline(aes(xintercept=mean(Percent.White[Student.Achievement.Rating=="Not Meeting Target"],na.rm=T)),color="red",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Percent.White[Student.Achievement.Rating=="Approaching Target"],na.rm=T)),color="blue",linetype="dashed",lwd=1)+
   geom_vline(aes(xintercept=mean(Percent.White[Student.Achievement.Rating=="Meeting Target"],na.rm=T)),color="green",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Percent.White[Student.Achievement.Rating=="Exceeding Target"],na.rm=T)),color="purple",linetype="dashed",lwd=1)+
   scale_x_continuous(breaks = seq(8,15,1))+
   xlab(label = "Percent Asian")+
   ggtitle("Distribution of Percentage Asian")+
   theme_classic()+ labs(fill = "Student Achievement Rating")
 
 #Faculty Experience
-g7 = ggplot(data2,aes(x=Principal.Experience.yrs,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
+g8 = ggplot(data2,aes(x=Principal.Experience.yrs,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
   geom_vline(aes(xintercept=mean(Principal.Experience.yrs[Student.Achievement.Rating=="Not Meeting Target"],na.rm=T)),color="red",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Principal.Experience.yrs[Student.Achievement.Rating=="Approaching Target"],na.rm=T)),color="blue",linetype="dashed",lwd=1)+
   geom_vline(aes(xintercept=mean(Principal.Experience.yrs[Student.Achievement.Rating=="Meeting Target"],na.rm=T)),color="green",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Principal.Experience.yrs[Student.Achievement.Rating=="Exceeding Target"],na.rm=T)),color="purple",linetype="dashed",lwd=1)+
   scale_x_continuous(breaks = seq(8,15,1))+
   xlab(label = "Principal Experience (yrs)")+
   ggtitle("Distribution of Principal Experience")+
   theme_classic()+ labs(fill = "Student Achievement Rating")
 
-g8 = ggplot(data2,aes(x=Teachers.3yrs.Experience,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
+g9 = ggplot(data2,aes(x=Teachers.3yrs.Experience,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
   geom_vline(aes(xintercept=mean(Teachers.3yrs.Experience[Student.Achievement.Rating=="Not Meeting Target"],na.rm=T)),color="red",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Teachers.3yrs.Experience[Student.Achievement.Rating=="Approaching Target"],na.rm=T)),color="blue",linetype="dashed",lwd=1)+
   geom_vline(aes(xintercept=mean(Teachers.3yrs.Experience[Student.Achievement.Rating=="Meeting Target"],na.rm=T)),color="green",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Teachers.3yrs.Experience[Student.Achievement.Rating=="Exceeding Target"],na.rm=T)),color="purple",linetype="dashed",lwd=1)+
   scale_x_continuous(breaks = seq(8,15,1))+
   xlab(label = "Teacher Experience (% More than 3 yrs)")+
   ggtitle("Distribution of Teacher Experience")+
@@ -349,48 +359,112 @@ g8 = ggplot(data2,aes(x=Teachers.3yrs.Experience,fill=factor(Student.Achievement
 #Financial Circumstances
 g10 = ggplot(data2,aes(x=Economic.Need.Index,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
   geom_vline(aes(xintercept=mean(Economic.Need.Index[Student.Achievement.Rating=="Not Meeting Target"],na.rm=T)),color="red",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Economic.Need.Index[Student.Achievement.Rating=="Approaching Target"],na.rm=T)),color="blue",linetype="dashed",lwd=1)+
   geom_vline(aes(xintercept=mean(Economic.Need.Index[Student.Achievement.Rating=="Meeting Target"],na.rm=T)),color="green",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Economic.Need.Index[Student.Achievement.Rating=="Exceeding Target"],na.rm=T)),color="purple",linetype="dashed",lwd=1)+
   scale_x_continuous(breaks = seq(8,15,1))+
   xlab(label = "Economic Need Index")+
   ggtitle("Distribution of Economic Need Index")+
   theme_classic()+ labs(fill = "Student Achievement Rating")
 
-g11 = ggplot(data2,aes(x=Percent.in.Temp.Housing,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
-  geom_vline(aes(xintercept=mean(Percent.in.Temp.Housing[Student.Achievement.Rating=="Not Meeting Target"],na.rm=T)),color="red",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Percent.in.Temp.Housing[Student.Achievement.Rating=="Approaching Target"],na.rm=T)),color="blue",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Percent.in.Temp.Housing[Student.Achievement.Rating=="Meeting Target"],na.rm=T)),color="green",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Percent.in.Temp.Housing[Student.Achievement.Rating=="Exceeding Target"],na.rm=T)),color="purple",linetype="dashed",lwd=1)+
-  scale_x_continuous(breaks = seq(8,15,1))+
-  xlab(label = "% Students in Temporary Housing")+
-  ggtitle("Distribution of Students in Temporary Housing")+
-  theme_classic()+ labs(fill = "Student Achievement Rating")
+ggarrange(p_year, p_race, p_county, p_map, ncol=2, nrow=2)
 ```
 
 
 ### Modeling
 
-Logistic  - for interpretation
-Random Forest - for predictive power
-
 ```{r}
+# Split dataset into training set, validation set, and test set
 
+splitSample <- sample(1:2, size = nrow(data2), prob = c(0.7, 0.3), 
+    replace = T)
+
+# training set
+train_set <- na.omit(data2[splitSample == 1, ])  # 397 observations
+
+intrain <- sample(1:2, size = nrow(train_set), prob = c(0.7, 0.3), replace = T)
+
+train <- train_set[intrain == 1, ]  # 277 observations
+
+# validation set
+valid <- train_set[intrain == 2, ]  # 120 observations
+
+# test set
+test <- na.omit(data2[splitSample == 2, ])  # 172 observations
+
+#Cross Validation method
+cv <- trainControl(method = "cv", number = 10)
+set.seed(1234)
 ```
 
+```{R}
+#Specifiying models
+
+# Logisitic Regression
+glm.fit <- train(Student.Achievement.Rating ~ Percent.Asian + Enrollment, data = train, method = "glm", family = binomial, 
+    trControl = cv)
+summary(glm.fit)
+# Random Forest
+rf.fit <- train(Student.Achievement.Rating ~ Percent.Asian + Enrollment + Economic.Need.Index, data = train, method = "rf", ntree = 100, 
+    importance = TRUE, trControl = cv)
+rf.fit.2 <- randomForest(Student.Achievement.Rating ~ Percent.Asian + Enrollment + Economic.Need.Index, data = train, ntree = 100, 
+    importance = TRUE)
+summary(rf.fit)
+varImpPlot(rf.fit.2)
+```
+
+```{r}
+#Predictions on Validation Set and Confusion Matrices
+
+# Logistic Regression
+pred.glm <- predict(glm.fit, valid)
+# Random Forest
+pred.rf <- predict(rf.fit, valid)
+
+# Logisitic Regression
+cm.glm <- confusionMatrix(valid$Student.Achievement.Rating, pred.glm)
+# Random Forest
+cm.rf <- confusionMatrix(valid$Student.Achievement.Rating, pred.rf)
+```
+
+```{r}
+#Tabulating Results
+Model <- c("Logistic regression", "Random forest")  # vector containing names of models
+
+# Training classification accuracy
+TrainAccuracy <- c(max(glm.fit$results$Accuracy), max(rf.fit$results$Accuracy))
+
+# Training misclassification error
+Train_missclass_Error <- 1 - TrainAccuracy
+
+# validation classification accuracy
+ValidationAccuracy <- c(cm.glm$overall[1], 
+    cm.rf$overall[1])
+
+# Validation misclassification error or out-of-sample-error
+Validation_missclass_Error <- 1 - ValidationAccuracy
+
+metrics <- data.frame(ModelType, TrainAccuracy, Train_missclass_Error, ValidationAccuracy, 
+    Validation_missclass_Error)  # data frame with above metrics
+
+knitr::kable(metrics, digits = 5)  # print table using kable() from knitr package
+
+#Prediction on test set
+pred.test.glm <- predict(glm.fit, testset)
+pred.test.glm
+pred.test.rf <- predict(rf.fit, testset)
+pred.test.rf
+```
 
 ### Model Selection
 
-```{r}
-set.seed(123)   #  set seed to ensure you always have same random numbers generated
-rows <- sample(nrow(data2))
-data2 <- data2[rows, ]
-sample = sample.split(data2,SplitRatio = 0.75) # splits the data in the ratio mentioned in SplitRatio. After splitting marks these rows as logical TRUE and the the remaining are marked as logical FALSE
-train =subset(data2,sample ==TRUE) # creates a training dataset named train1 with rows which are marked as TRUE
-test=subset(data2, sample==FALSE)
-train = na.omit(train)
-test = na.omit(test)
-```
+Misclassification error is 32% for logistic regression and 42% for random forest. The logistic regression is also easier to interpret. For these reasons, we move ahead with the logistic regression. 
+
+### Model Specification
+
+$$
+\mbox{logit}(Pr(y_i = 1)) = \beta_0 + \alpha^{race}_{j[i]} + \beta_1year_{[i]} + \alpha^{county}_{k[i]} + \epsilon_i \\
+\alpha^{race}_j \mbox{~} N(\mu_{\alpha}, \sigma^2_{race}) \\
+\alpha^{county}_k \mbox{~} N(\gamma_{\alpha}, \sigma^2_{county})
+$$
 
 ### Visualizaitons (R Shiny)
 
@@ -398,13 +472,14 @@ test = na.omit(test)
 
 ### To Do
 - Data Scraping
-- Excluding Collinear covariates
-- Excluding QR covariates
-- Modeling
-- CV
 - Visualizations
 
 Questions
-- Binary Logistic vs. Multinomial Logistic?
 - How to scrape data?
 - MICE not working?
+- MICE before or after combining factor levels
+- Confusion matrix outputs really weird
+
+
+
+
