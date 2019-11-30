@@ -18,7 +18,7 @@ pkgTest <- function(x) {
     install.packages(x,dep=TRUE)
   }
 }
-pkgs <- c("jsonlite", "dplyr", "rvest", "purrr", "ggplot2", "gganimate", "ggthemes", "lubridate", "zoo", "shiny", "stringr", "mice", "VIM", "parallel", "corrplot", "MASS", "caTools", "nnet", "randomForest", "pROC", "caret")
+pkgs <- c("jsonlite", "dplyr", "rvest", "purrr", "ggplot2", "gganimate", "ggthemes", "lubridate", "zoo", "shiny", "stringr", "mice", "VIM", "parallel", "corrplot", "MASS", "caTools", "nnet", "randomForest", "pROC", "caret", "ggpubr")
 for (pkg in pkgs) {
   pkgTest(pkg)
 }
@@ -46,6 +46,7 @@ library(nnet)
 library(randomForest)
 library(pROC)
 library(caret)
+library(ggpubr)
 ```
 
 ### Scraping
@@ -153,6 +154,7 @@ df
 
 ```{r}
 data <- read.csv("schooldata.csv")
+colnames(data)
 
 #Renaming variable names
 data = data %>% 
@@ -177,8 +179,8 @@ data = data %>%
     Teacher.Development.qr = Quality.Review...How.thoughtful.is.the.school.s.approach.to.teacher.development.and.evaluation.,
     Decisions.Evaluated.qr = Quality.Review...How.well.are.school.decisions.evaluated.and.adjusted.,
     Review.Dates.qr = Quality.Review...Dates.of.Review,
-    ELA.Proficiency = Average.Incoming.ELA.Proficiency..Based.on.4th.Grade.,
-    Math.Proficiency = Average.Incoming.Math.Proficiency..Based.on.4th.Grade.,
+    ELA.Proficiency = Average.Grade.8.English.Proficiency,
+    Math.Proficiency = Average.Grade.8.Math.Proficiency,
     Principal.Experience.yrs = Years.of.principal.experience.at.this.school, 
     Teachers.3yrs.Experience = Percent.of.teachers.with.3.or.more.years.of.experience,
     Students.Chronically.Absent = Percent.of.Students.Chronically.Absent
@@ -212,12 +214,12 @@ data_numeric = data[ , purrr::map_lgl(data, is.numeric)]
 corrplot(cor(data_numeric, use="pairwise.complete.obs"), method = "circle", tl.cex=0.5)
 
 #Removing Covariates
-redundant_cols = c("Instruction.Rating", "Supportive.Environment.Rating", "Community.Ties.Rating", "Teachers.Rating", "Leadership.Rating", "Trust.Rating", "DBN", "Percent.HRA.Eligible", "Effective.Teaching.qr", "Expectations.Communicated.qr", "Safe.Inclusive.qr", "Meet.Goals.qr", "Decisions.Evaluated.qr", "Challenging.Curriculum.qr", "School.Assess.qr", "Teachers.Cooperation.qr", "Resource.Allocation.qr", "Teacher.Development.qr", "Review.Dates.qr", "Students.Chronically.Absent", "Percent.in.Temp.Housing")
+redundant_cols = c("Instruction.Rating", "Supportive.Environment.Rating", "Community.Ties.Rating", "Teachers.Rating", "Leadership.Rating", "Trust.Rating", "DBN", "Percent.HRA.Eligible", "Effective.Teaching.qr", "Expectations.Communicated.qr", "Safe.Inclusive.qr", "Meet.Goals.qr", "Decisions.Evaluated.qr", "Challenging.Curriculum.qr", "School.Assess.qr", "Teachers.Cooperation.qr", "Resource.Allocation.qr", "Teacher.Development.qr", "Review.Dates.qr", "Students.Chronically.Absent", "Percent.in.Temp.Housing", "School.Type", "ELA.Proficiency", "Math.Proficiency")
 data = data[ , -which(names(data) %in% redundant_cols)]
 colnames(data)
 ```
 
-I decided to remove the above covariates for a couple reasons. First, as the correlation matrix demonstrates, there is high correlation between several rating metrics and economic need proxies, so I eliminated all but one to address collinearity and reduce variance. For example, Supportive.Environment.Rating and Supportive.Environment.Rating.pct measure the same metric in different formats, and percent in temporary housing and percent HRA elgible are both proxies for economic need. Second, as the regression "one-in-ten" rule-of-thumb dictates, I should have at most one predictor for every 10 response-variable combinations. Third, I removed all the Quality Review covariates because (1) they are likely highly correlated with each other, (2) the data dictionary does not define what constitutes such subjective evaluation metrics, and (3) these metrics are likely highly inconsistent from school to school, so I felt that they did not add much value to the model
+I decided to remove the above covariates for a couple reasons. First, as the correlation matrix demonstrates, there is high correlation between several rating metrics and economic need proxies, so I eliminated all but one to address collinearity and reduce variance. For example, Supportive.Environment.Rating and Supportive.Environment.Rating.pct measure the same metric in different formats, and percent in temporary housing and percent HRA elgible are both proxies for economic need. Second, as the regression "one-in-ten" rule-of-thumb dictates, I should have at most one predictor for every 10 response-variable combinations. Third, I removed all the Quality Review covariates because (1) they are likely highly correlated with each other, (2) the data dictionary does not define what constitutes such subjective evaluation metrics, and (3) these metrics are likely highly inconsistent from school to school, so I felt that they did not add much value to the model.
 
 ### Missing Data
 
@@ -239,6 +241,8 @@ ggplot(missing.prop, aes(x = reorder(var, -prop), y = prop)) +
   xlab("Covariate") + 
   ylab("Proportion Missing") +
   ggtitle("The Proportion of Missing Values for Each Covariate")
+
+sum(is.na(data$Student.Achievement.Rating))/nrow(data)
 ```
 
 Some initial data exploration tells us that our data is missing about 8% of its values. That 8% missing data is distributed in such a way that only 26% of our observations (336 schools) have complete information. The plot showcases some of the most problematic covariates in terms of missing data. 
@@ -247,24 +251,29 @@ We suspected that the Economic Need Index might have some effect on the presence
 
 ```{r}
 #Not MCAR
-
-marginplot(data[, c("Teacher.Attendance.Rate", "ELA.Proficiency")], col = mdc(1:2), cex.numbers = 1.2, pch = 19)
-
-marginplot(data[, c("Teacher.Attendance.Rate", "Math.Proficiency")], col = mdc(1:2), cex.numbers = 1.2, pch = 19)
+marginplot(data[, c("Teacher.Attendance.Rate", "Teachers.3yrs.Experience")], col = mdc(1:2), cex.numbers = 1.2, pch = 19)
 ```
 
-Looking at the distributions, we can see that the missngness of Math and ELA proficiency seems very different depending on the teacher attendance, indicating that the covariates are not MCAR. This could be because when teachers are absent during data collection days, ELA and Math proficiency of their class' students is not recorded. 
+Looking at the distributions, we can see that the missngness of Teacher Attendance and Teacher Experience seem dependent, indicating that the covariates are not MCAR. This could be because when teachers are absent during data collection days, then teacher experience may not be collected. 
 
-To avoid complete case analysis and other ways of dealing with missing data that would systematically change the distribution of our outcome patterns and thus bias our analysis results, we turn to Multiple Imputation methods to instead generate conditional distributions on the missingness of our data. 
-
-We used mean/mode imputation to impute the covariates that were missing values within the threshold of 0% to 10%. This is because the results of doing mean imputation in covariates with only a small amount of missing values will not differ significantly from doing MICE on all covariates, which would have taken a lot more time. In the graph below, we can see that after doing mean imputation on the covariates missing small amounts of data, only the covariates missing significant amounts of data are left. We will use MICE to perform imputation with these covariates.
+While it would be nice to use multiple imputation mechanisms, it simply is not working right now.  
 
 ```{r, include=FALSE}
-#Mean imputation 
-impute_covariates <- as.character(missing.prop[(missing.prop$prop <= 0.1) & (missing.prop$prop > 0), ]$var)
+#Mean and Mode Imputation 
+
+calc.mode <- function(x) {
+  ux <- na.omit(unique(x))
+  ux[which.max(tabulate(match(x, ux)))]
+}
+impute_covariates <- as.character(missing.prop[(missing.prop$prop <= 0.15) & (missing.prop$prop > 0), ]$var)
 data2 <- as.data.frame(data)
 for (var in impute_covariates) {
-    data2[is.na(data2[[var]]), var] <- mean(data2[[var]], na.rm = TRUE)
+  print(var)
+  if (is.factor(data2[[var]])) {
+    data2[is.na(data2[[var]]), var] <- calc.mode(data2[[var]])
+  } else {
+    data2[is.na(data[[var]]), var] <- mean(data[[var]], na.rm = TRUE)
+  }
 }
 
 colnames(data)[colSums(is.na(data)) > 0]
@@ -274,18 +283,29 @@ colnames(data2)[colSums(is.na(data2)) > 0]
 We used MICE, or Multiple Imputation using Chained Equations, to created our imputed datasets. We created 4 imputed datasets, roughly corresponding to the percent of missing data. 
 
 ```{r, include=FALSE}
-if (!file.exists("mice.rds")) {
-  start_time <- Sys.time()
-  data3 <- parlmice(data2, m=4, printFlag=FALSE, maxit = 5,
-                  cluster.seed=123, n.core = 2, n.imp.core = 4, cl.type = "FORK")
-  end_time <- Sys.time()
-  end_time - start_time
-} else {
-  data3 <- readRDS("mice.rds")
-}
+# Not working at the moment
 
-data3 <- parlmice(data2, m=2, printFlag=TRUE, maxit = 2,
-                  cluster.seed=123, n.core = 2, n.imp.core = 2, cl.type = "FORK")
+# if (!file.exists("mice.rds")) {
+#   start_time <- Sys.time()
+#   data3 <- parlmice(data2, m=4, printFlag=FALSE, maxit = 4,
+#                   cluster.seed=123, n.core = 2, n.imp.core = 2, cl.type = "FORK")
+#   end_time <- Sys.time()
+#   end_time - start_time
+# } else {
+#   data3 <- readRDS("mice.rds")
+# }
+# 
+# missVars <- names(data2)[colSums(is.na(data2)) > 0]
+# missVars
+# 
+# data_imputer = subset(data2, select = -c(School.Name, Teacher.Attendance.Rate))
+# data_school_names = data2$School.Name
+# 
+# data3 <- mice(data_imputer, m=1, printFlag=TRUE, maxit = 1)
+# 
+# data3$loggedEvents
+# 
+# sum(is.na(data3$data))
 ```
 
 ### EDA - General
@@ -305,8 +325,6 @@ g3 = ggplot(data2,aes(x=Percent.Asian,fill=factor(Student.Achievement.Rating)))+
   ggtitle("Distribution of Percentage Asian")+
   theme_classic() + labs(fill = "Student Achievement Rating")
 
-g3
-
 g4 = ggplot(data2,aes(x=Percent.Hispanic,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
   geom_vline(aes(xintercept=mean(Percent.Hispanic[Student.Achievement.Rating=="Not Meeting Target"],na.rm=T)),color="red",linetype="dashed",lwd=1)+
   geom_vline(aes(xintercept=mean(Percent.Hispanic[Student.Achievement.Rating=="Meeting Target"],na.rm=T)),color="green",linetype="dashed",lwd=1)+
@@ -315,15 +333,7 @@ g4 = ggplot(data2,aes(x=Percent.Hispanic,fill=factor(Student.Achievement.Rating)
   ggtitle("Distribution of Percentage Hispanic")+
   theme_classic()+ labs(fill = "Student Achievement Rating")
 
-g5 = ggplot(data2,aes(x=Percent.Asian,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
-  geom_vline(aes(xintercept=mean(Percent.Asian[Student.Achievement.Rating=="Not Meeting Target"],na.rm=T)),color="red",linetype="dashed",lwd=1)+
-  geom_vline(aes(xintercept=mean(Percent.Asian[Student.Achievement.Rating=="Meeting Target"],na.rm=T)),color="green",linetype="dashed",lwd=1)+
-  scale_x_continuous(breaks = seq(8,15,1))+
-  xlab(label = "Percent Asian")+
-  ggtitle("Distribution of Percentage Asian")+
-  theme_classic()+ labs(fill = "Student Achievement Rating")
-
-g6 = ggplot(data2,aes(x=Percent.Black,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
+g5 = ggplot(data2,aes(x=Percent.Black,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
   geom_vline(aes(xintercept=mean(Percent.Black[Student.Achievement.Rating=="Not Meeting Target"],na.rm=T)),color="red",linetype="dashed",lwd=1)+
   geom_vline(aes(xintercept=mean(Percent.Black[Student.Achievement.Rating=="Meeting Target"],na.rm=T)),color="green",linetype="dashed",lwd=1)+
   scale_x_continuous(breaks = seq(8,15,1))+
@@ -331,7 +341,7 @@ g6 = ggplot(data2,aes(x=Percent.Black,fill=factor(Student.Achievement.Rating)))+
   ggtitle("Distribution of Percentage Black")+
   theme_classic()+ labs(fill = "Student Achievement Rating")
 
-g7 = ggplot(data2,aes(x=Percent.White,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
+g6 = ggplot(data2,aes(x=Percent.White,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
   geom_vline(aes(xintercept=mean(Percent.White[Student.Achievement.Rating=="Not Meeting Target"],na.rm=T)),color="red",linetype="dashed",lwd=1)+
   geom_vline(aes(xintercept=mean(Percent.White[Student.Achievement.Rating=="Meeting Target"],na.rm=T)),color="green",linetype="dashed",lwd=1)+
   scale_x_continuous(breaks = seq(8,15,1))+
@@ -339,8 +349,10 @@ g7 = ggplot(data2,aes(x=Percent.White,fill=factor(Student.Achievement.Rating)))+
   ggtitle("Distribution of Percentage Asian")+
   theme_classic()+ labs(fill = "Student Achievement Rating")
 
+ggarrange(g3, g4, g5, g6, ncol=2, nrow=2)
+
 #Faculty Experience
-g8 = ggplot(data2,aes(x=Principal.Experience.yrs,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
+g7 = ggplot(data2,aes(x=Principal.Experience.yrs,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
   geom_vline(aes(xintercept=mean(Principal.Experience.yrs[Student.Achievement.Rating=="Not Meeting Target"],na.rm=T)),color="red",linetype="dashed",lwd=1)+
   geom_vline(aes(xintercept=mean(Principal.Experience.yrs[Student.Achievement.Rating=="Meeting Target"],na.rm=T)),color="green",linetype="dashed",lwd=1)+
   scale_x_continuous(breaks = seq(8,15,1))+
@@ -348,7 +360,7 @@ g8 = ggplot(data2,aes(x=Principal.Experience.yrs,fill=factor(Student.Achievement
   ggtitle("Distribution of Principal Experience")+
   theme_classic()+ labs(fill = "Student Achievement Rating")
 
-g9 = ggplot(data2,aes(x=Teachers.3yrs.Experience,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
+g8 = ggplot(data2,aes(x=Teachers.3yrs.Experience,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
   geom_vline(aes(xintercept=mean(Teachers.3yrs.Experience[Student.Achievement.Rating=="Not Meeting Target"],na.rm=T)),color="red",linetype="dashed",lwd=1)+
   geom_vline(aes(xintercept=mean(Teachers.3yrs.Experience[Student.Achievement.Rating=="Meeting Target"],na.rm=T)),color="green",linetype="dashed",lwd=1)+
   scale_x_continuous(breaks = seq(8,15,1))+
@@ -357,15 +369,13 @@ g9 = ggplot(data2,aes(x=Teachers.3yrs.Experience,fill=factor(Student.Achievement
   theme_classic()+ labs(fill = "Student Achievement Rating")
 
 #Financial Circumstances
-g10 = ggplot(data2,aes(x=Economic.Need.Index,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
+g9 = ggplot(data2,aes(x=Economic.Need.Index,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
   geom_vline(aes(xintercept=mean(Economic.Need.Index[Student.Achievement.Rating=="Not Meeting Target"],na.rm=T)),color="red",linetype="dashed",lwd=1)+
   geom_vline(aes(xintercept=mean(Economic.Need.Index[Student.Achievement.Rating=="Meeting Target"],na.rm=T)),color="green",linetype="dashed",lwd=1)+
   scale_x_continuous(breaks = seq(8,15,1))+
   xlab(label = "Economic Need Index")+
   ggtitle("Distribution of Economic Need Index")+
   theme_classic()+ labs(fill = "Student Achievement Rating")
-
-ggarrange(p_year, p_race, p_county, p_map, ncol=2, nrow=2)
 ```
 
 
@@ -442,21 +452,21 @@ ValidationAccuracy <- c(cm.glm$overall[1],
 # Validation misclassification error or out-of-sample-error
 Validation_missclass_Error <- 1 - ValidationAccuracy
 
-metrics <- data.frame(ModelType, TrainAccuracy, Train_missclass_Error, ValidationAccuracy, 
+metrics <- data.frame(Model, TrainAccuracy, Train_missclass_Error, ValidationAccuracy, 
     Validation_missclass_Error)  # data frame with above metrics
 
 knitr::kable(metrics, digits = 5)  # print table using kable() from knitr package
 
 #Prediction on test set
-pred.test.glm <- predict(glm.fit, testset)
+pred.test.glm <- predict(glm.fit, test)
 pred.test.glm
-pred.test.rf <- predict(rf.fit, testset)
+pred.test.rf <- predict(rf.fit, test)
 pred.test.rf
 ```
 
 ### Model Selection
 
-Misclassification error is 32% for logistic regression and 42% for random forest. The logistic regression is also easier to interpret. For these reasons, we move ahead with the logistic regression. 
+Misclassification error is 36% for logistic regression and 54% for random forest. The logistic regression is also easier to interpret. For these reasons, we move ahead with the logistic regression. 
 
 ### Model Specification
 
@@ -471,14 +481,10 @@ $$
 ### Conclusions
 
 ### To Do
-- Data Scraping
-- Visualizations
 
 Questions
 - How to scrape data?
 - MICE not working?
-- MICE before or after combining factor levels
-- Confusion matrix outputs really weird
 
 
 
