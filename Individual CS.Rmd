@@ -312,6 +312,8 @@ p_sar = ggplot(data5, aes(factor(Student.Achievement.Rating),fill = Student.Achi
 geom_bar(stat="count", position = "dodge") + 
 scale_fill_brewer(palette = "Set1") + ggtitle("Student Achievement Rating Distribution") + xlab("Student Achievement Rating") + labs(fill = "Target Category") + theme(axis.text.x=element_text(angle=45, hjust=1))
 
+p_sar
+
 #Enrollment
 p_enrollment = ggplot(data5,aes(x=Enrollment,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
   geom_vline(aes(xintercept=mean(Enrollment[Student.Achievement.Rating=="Not Meeting Target"],na.rm=T)),color="red",linetype="dashed",lwd=1)+
@@ -425,7 +427,7 @@ glm.fit.pred <- train(Student.Achievement.Rating ~ Enrollment + Percent.Asian + 
 summary(glm.fit.model)
 
 # Random Forest
-rf.fit.model <- randomForest(Student.Achievement.Rating ~ Percent.Asian + Enrollment + Economic.Need.Index, data = train, ntree = 100, 
+rf.fit.model <- randomForest(Student.Achievement.Rating ~ Enrollment + Percent.Asian + Percent.Black + Economic.Need.Index + Principal.Experience.yrs + Teachers.Rating.pct, data = train, ntree = 100, 
     importance = TRUE)
 rf.fit.pred <- train(Student.Achievement.Rating ~ Enrollment + Percent.Asian + Percent.Black + Economic.Need.Index + Principal.Experience.yrs + Teachers.Rating.pct, data = train, method = "rf", ntree = 100, 
     importance = TRUE, trControl = cv)
@@ -443,6 +445,8 @@ pred.rf <- predict(rf.fit.pred, valid)
 cm.glm <- confusionMatrix(valid$Student.Achievement.Rating, pred.glm)
 # Random Forest
 cm.rf <- confusionMatrix(valid$Student.Achievement.Rating, pred.rf)
+
+cm.rf
 ```
 
 ```{r}
@@ -481,13 +485,14 @@ Misclassification error is 36% for logistic regression and 41% for random forest
 ### Model Specification
 
 $$
-\mbox{logit}(Pr(y_i = 1)) = \beta_0 + \beta_1*Enrollment + \beta_2*Percent.Asian 
+\mbox{logit}(Pr(y_i = 1)) = \beta_0 + \beta_1*Enrollment + \beta_2*Percent.Asian \\
 + \beta_3*Percent.Black + \beta_4*Economic.Need.Index + 
 \beta_5*Principal.Experience.yrs + \beta_6*Teachers.Rating.pct
 $$
 
 ### Probabilistic Conclusions for shiny
 ```{r}
+summary(glm.fit.model)
 glm.coef = coef(glm.fit.model)
 glm.coef
 
@@ -623,10 +628,6 @@ server <- function(input, output) {
 }
 shinyApp(ui, server)
 ```
-
-
-
-
 
 ### Conclusions
 
