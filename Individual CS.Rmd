@@ -54,100 +54,100 @@ library(shiny)
 ### Page by page method
 
 ```{r}
-base_url = "https://data.cityofnewyork.us/Education/2016-2017-School-Quality-Report-Results-for-High-S/ewhs-k7um/data"
-p = read_html(base_url)
-
-school_quality = tibble(
-  "Student Achievement Rating" = base_url %>%
-    html_nodes("td:nth-child(11) div") %>%
-    html_text()
-) 
-
-school_quality
+# base_url = "https://data.cityofnewyork.us/Education/2016-2017-School-Quality-Report-Results-for-High-S/ewhs-k7um/data"
+# p = read_html(base_url)
+# 
+# school_quality = tibble(
+#   "Student Achievement Rating" = base_url %>%
+#     html_nodes("td:nth-child(11) div") %>%
+#     html_text()
+# ) 
+# 
+# school_quality
 ```
 
 
 ### Yellow Pages Method
 
 ```{r}
-count = 0
-
-for(numPage in 1:2){
-
-        # Create and read the page address
-        page = paste('https://data.cityofnewyork.us/Education/2016-2017-School-Quality-Report-Elem-Middle-K-8-Sc/9n2i-9h9s/data/?page', '=', numPage)
-        nPage <- str_replace_all(page, pattern=" ", repl="")
-
-        # Read the 20 items of each the page
-        for(numItem in 1:3){
-
-                print(paste(' -- Reading the item', numItem, ' on page', numPage))
-
-                item =  paste('item', numItem, sep = "", collapse = NULL)
-                xPath <- paste("//*[@id=',item, ']", sep = "'", collapse = NULL)
-
-                # read the path
-                readPath <- nPage %>% read_html() %>% html_nodes(xpath = xPath)
-
-                # Get values
-                student_achievement_rating  <- readPath %>% html_nodes(".table-responsive:nth-child(7) td:nth-child(11) div") %>% html_text(trim = TRUE)
-                
-                print(student_achievement_rating)
-                
-                lengthStudentachievementrating <- length(student_achievement_rating)
-                
-                print(lengthStudentachievementrating)
-
-                enrollment <- readPath %>% html_nodes("td:nth-child(4) div") %>% html_text(trim = TRUE)
-                lengthEnrollment <- length(enrollment)
-
-                school_type <- readPath %>% html_nodes("td:nth-child(3) div") %>% html_text(trim = TRUE)
-                lengthSchooltype <- length(school_type)
-
-                if(lengthStudentachievementrating == 0){
-
-                        student_achievement_rating = 'NA'
-
-                }
-
-                if(lengthEnrollment == 0){
-
-                        enrollment = 'NA'
-
-                }
-
-                if(lengthSchooltype == 0){
-
-                        school_type = 'NA'
-
-                }
-
-                # Store variables
-                if(count == 0){
-
-                        vectorStudentachievementrating <- student_achievement_rating
-                        vectorEnrollment <- enrollment
-                        vectorSchooltype <- school_type
-                }else{
-
-                        vectorStudentachievementrating <- c(vectorStudentachievementrating, student_achievement_rating)
-                        vectorEnrollment <- c(vectorEnrollment, enrollment)
-                        vectorSchooltype <- c(vectorSchooltype, school_type)
-
-                }
-
-
-                count = count + 1
-
-        }
-
-
-}
-
-
-df <- data.frame(vectorStudentachievementrating, vectorEnrollment, vectorSchooltype)
-
-df
+# count = 0
+# 
+# for(numPage in 1:2){
+# 
+#         # Create and read the page address
+#         page = paste('https://data.cityofnewyork.us/Education/2016-2017-School-Quality-Report-Elem-Middle-K-8-Sc/9n2i-9h9s/data/?page', '=', numPage)
+#         nPage <- str_replace_all(page, pattern=" ", repl="")
+# 
+#         # Read the 20 items of each the page
+#         for(numItem in 1:3){
+# 
+#                 print(paste(' -- Reading the item', numItem, ' on page', numPage))
+# 
+#                 item =  paste('item', numItem, sep = "", collapse = NULL)
+#                 xPath <- paste("//*[@id=',item, ']", sep = "'", collapse = NULL)
+# 
+#                 # read the path
+#                 readPath <- nPage %>% read_html() %>% html_nodes(xpath = xPath)
+# 
+#                 # Get values
+#                 student_achievement_rating  <- readPath %>% html_nodes(".table-responsive:nth-child(7) td:nth-child(11) div") %>% html_text(trim = TRUE)
+#                 
+#                 print(student_achievement_rating)
+#                 
+#                 lengthStudentachievementrating <- length(student_achievement_rating)
+#                 
+#                 print(lengthStudentachievementrating)
+# 
+#                 enrollment <- readPath %>% html_nodes("td:nth-child(4) div") %>% html_text(trim = TRUE)
+#                 lengthEnrollment <- length(enrollment)
+# 
+#                 school_type <- readPath %>% html_nodes("td:nth-child(3) div") %>% html_text(trim = TRUE)
+#                 lengthSchooltype <- length(school_type)
+# 
+#                 if(lengthStudentachievementrating == 0){
+# 
+#                         student_achievement_rating = 'NA'
+# 
+#                 }
+# 
+#                 if(lengthEnrollment == 0){
+# 
+#                         enrollment = 'NA'
+# 
+#                 }
+# 
+#                 if(lengthSchooltype == 0){
+# 
+#                         school_type = 'NA'
+# 
+#                 }
+# 
+#                 # Store variables
+#                 if(count == 0){
+# 
+#                         vectorStudentachievementrating <- student_achievement_rating
+#                         vectorEnrollment <- enrollment
+#                         vectorSchooltype <- school_type
+#                 }else{
+# 
+#                         vectorStudentachievementrating <- c(vectorStudentachievementrating, student_achievement_rating)
+#                         vectorEnrollment <- c(vectorEnrollment, enrollment)
+#                         vectorSchooltype <- c(vectorSchooltype, school_type)
+# 
+#                 }
+# 
+# 
+#                 count = count + 1
+# 
+#         }
+# 
+# 
+# }
+# 
+# 
+# df <- data.frame(vectorStudentachievementrating, vectorEnrollment, vectorSchooltype)
+# 
+# df
 ```
 
 ### Data Cleaning
@@ -214,12 +214,12 @@ data_numeric = data[ , purrr::map_lgl(data, is.numeric)]
 corrplot(cor(data_numeric, use="pairwise.complete.obs"), method = "circle", tl.cex=0.5)
 
 #Removing Covariates
-redundant_cols = c("Instruction.Rating", "Supportive.Environment.Rating", "Community.Ties.Rating", "Teachers.Rating", "Leadership.Rating", "Trust.Rating", "DBN", "Percent.HRA.Eligible", "Effective.Teaching.qr", "Expectations.Communicated.qr", "Safe.Inclusive.qr", "Meet.Goals.qr", "Decisions.Evaluated.qr", "Challenging.Curriculum.qr", "School.Assess.qr", "Teachers.Cooperation.qr", "Resource.Allocation.qr", "Teacher.Development.qr", "Review.Dates.qr", "Students.Chronically.Absent", "Percent.in.Temp.Housing", "School.Type", "ELA.Proficiency", "Math.Proficiency")
+redundant_cols = c("Instruction.Rating", "Supportive.Environment.Rating", "Community.Ties.Rating", "Teachers.Rating", "Leadership.Rating", "Trust.Rating", "DBN", "Percent.HRA.Eligible", "Effective.Teaching.qr", "Expectations.Communicated.qr", "Safe.Inclusive.qr", "Meet.Goals.qr", "Decisions.Evaluated.qr", "Challenging.Curriculum.qr", "School.Assess.qr", "Teachers.Cooperation.qr", "Resource.Allocation.qr", "Teacher.Development.qr", "Review.Dates.qr", "Students.Chronically.Absent", "Percent.in.Temp.Housing", "School.Type", "ELA.Proficiency", "Math.Proficiency", "School.Name")
 data = data[ , -which(names(data) %in% redundant_cols)]
 colnames(data)
 ```
 
-I decided to remove the above covariates for a couple reasons. First, as the correlation matrix demonstrates, there is high correlation between several rating metrics and economic need proxies, so I eliminated all but one to address collinearity and reduce variance. For example, Supportive.Environment.Rating and Supportive.Environment.Rating.pct measure the same metric in different formats, and percent in temporary housing and percent HRA elgible are both proxies for economic need. Second, as the regression "one-in-ten" rule-of-thumb dictates, I should have at most one predictor for every 10 response-variable combinations. Third, I removed all the Quality Review covariates because (1) they are likely highly correlated with each other, (2) the data dictionary does not define what constitutes such subjective evaluation metrics, and (3) these metrics are likely highly inconsistent from school to school, so I felt that they did not add much value to the model.
+I decided to remove the above covariates for a couple reasons. First, as the correlation matrix demonstrates, there is high correlation between several rating metrics and economic need proxies, so I eliminated all but one to address collinearity and reduce variance. For example, Supportive.Environment.Rating and Supportive.Environment.Rating.pct measure the same metric in different formats, and percent in temporary housing and percent HRA elgible are both proxies for economic need. Second, as the regression "one-in-ten" rule-of-thumb dictates, I should have at most one predictor for every 10 response-variable combinations. Third, I removed all the Quality Review covariates because (1) they are likely highly correlated with each other, (2) the data dictionary does not define what constitutes such subjective evaluation metrics, and (3) these metrics are likely highly inconsistent from school to school, so I felt that they did not add much value to the model. I removed these covariates instead of just excluding them from the model to improve mice runtime.
 
 ### Missing Data
 
@@ -276,32 +276,20 @@ for (var in impute_covariates) {
 We used MICE, or Multiple Imputation using Chained Equations, to created our imputed datasets. We created 4 imputed datasets, roughly corresponding to the percent of missing data. 
 
 ```{r, include=FALSE}
-set.seed(123)
+# data2$Student.Achievement.Rating.num = data2$Student.Achievement.Rating
+# levels(data2$Student.Achievement.Rating.num) <- c(0, 1)
+# data2$Student.Achievement.Rating.num
+# data_imputer = subset(data2, select = -c(School.Name, Student.Achievement.Rating))
 
-data2$Student.Achievement.Rating.num = data2$Student.Achievement.Rating
-levels(data2$Student.Achievement.Rating.num) <- c(0, 1)
-data2$Student.Achievement.Rating.num
-data_imputer = subset(data2, select = -c(School.Name, Student.Achievement.Rating))
+init = mice(data2, maxit=0) 
+meth = init$method
+predM = init$predictorMatrix
+meth[c("Student.Achievement.Rating")]="logreg" 
+data3 <- mice(data2, m=4, method=meth, predictorMatrix=predM, maxit = 5)
 
-if (!file.exists("mice.rds")) {
-   start_time <- Sys.time()
-   data3 <- parlmice(data_imputer, m=4, printFlag=FALSE, maxit = 5,
-                   cluster.seed=333, n.core = 2, n.imp.core = 2, cl.type = "FORK")
-   end_time <- Sys.time()
-   end_time - start_time
- } else {
-   data3 <- readRDS("mice.rds")
- }
+data5 <- complete(data3)
 
-data4 = data3$data
-data4$Student.Achievement.Rating = data4$Student.Achievement.Rating.num
-levels(data4$Student.Achievement.Rating) <- c("Not Meeting Target", "Meeting Target")
-
-data5 = na.omit(data4)
-
-#Gradual whittling down of NAs
-colnames(data)[colSums(is.na(data)) > 0]
-colnames(data2)[colSums(is.na(data2)) > 0]
+sum(is.na(data5))
 ```
 
 ### Visualizations to be used in shiny
@@ -311,8 +299,6 @@ colnames(data2)[colSums(is.na(data2)) > 0]
 p_sar = ggplot(data5, aes(factor(Student.Achievement.Rating),fill = Student.Achievement.Rating)) +
 geom_bar(stat="count", position = "dodge") + 
 scale_fill_brewer(palette = "Set1") + ggtitle("Student Achievement Rating Distribution") + xlab("Student Achievement Rating") + labs(fill = "Target Category") + theme(axis.text.x=element_text(angle=45, hjust=1))
-
-p_sar
 
 #Enrollment
 p_enrollment = ggplot(data5,aes(x=Enrollment,fill=factor(Student.Achievement.Rating)))+geom_density(alpha=0.25)+
@@ -396,91 +382,106 @@ p_instruction_rating = ggplot(data5,aes(x=Instruction.Rating.pct,fill=factor(Stu
 ### Modeling
 
 ```{r}
-# Split dataset into training set, validation set, and test set
-
-splitSample <- sample(1:2, size = nrow(data2), prob = c(0.7, 0.3), 
-    replace = T)
-
-# training set
-train_set <- na.omit(data2[splitSample == 1, ])  # 397 observations
-
-intrain <- sample(1:2, size = nrow(train_set), prob = c(0.7, 0.3), replace = T)
-
-train <- train_set[intrain == 1, ]  # 277 observations
-
-# validation set
-valid <- train_set[intrain == 2, ]  # 120 observations
-
-# test set
-test <- na.omit(data2[splitSample == 2, ])  # 172 observations
-
-#Cross Validation method
-cv <- trainControl(method = "cv", number = 10)
-set.seed(1234)
+# Split into Training and Testing
+set.seed(12)
+sample = sample.split(data5, SplitRatio = .75)
+train = subset(data5, sample == TRUE)
+test  = subset(data5, sample == FALSE)
 ```
 
 ```{R}
-# Logisitic Regression
-glm.fit.model = glm(Student.Achievement.Rating ~ Enrollment + Percent.Asian + Percent.Black + Economic.Need.Index + Principal.Experience.yrs + Teachers.Rating.pct, data = train, family = binomial)
-glm.fit.pred <- train(Student.Achievement.Rating ~ Enrollment + Percent.Asian + Percent.Black + Economic.Need.Index + Principal.Experience.yrs + Teachers.Rating.pct, data = train, method = "glm", family = binomial, 
-    trControl = cv)
-summary(glm.fit.model)
+#Full Model
+glm.full = glm(Student.Achievement.Rating ~., data = train, family = binomial)
+
+#AIC
+glm.aic = step(glm.full,direction="backward", data=train, cluster.seed = 6)
+
+#Ridge and Lasso
+x.train = train
+x.train$Student.Achievement.Rating = NULL
+x.train$School.Name = NULL
+y.train = train$Student.Achievement.Rating
+x.train=as.matrix(x.train)
+
+set.seed(15)
+cv.out <- cv.glmnet(x.train, y.train, alpha = 0, family = "binomial")
+bestlam <- cv.out$lambda.min
+bestlam
+
+glm.ridge <-glmnet(x = x.train, y = y.train, alpha = 0, lambda = bestlam, family = "binomial" )
+glm.lasso <-glmnet(x = x.train, y = y.train, alpha = 1, lambda = bestlam, family = "binomial" )
+coef(glm.ridge)
+coef(glm.lasso)
 
 # Random Forest
-rf.fit.model <- randomForest(Student.Achievement.Rating ~ Enrollment + Percent.Asian + Percent.Black + Economic.Need.Index + Principal.Experience.yrs + Teachers.Rating.pct, data = train, ntree = 100, 
+rf <- randomForest(Student.Achievement.Rating ~ ., data = train, ntree = 100, 
     importance = TRUE)
-rf.fit.pred <- train(Student.Achievement.Rating ~ Enrollment + Percent.Asian + Percent.Black + Economic.Need.Index + Principal.Experience.yrs + Teachers.Rating.pct, data = train, method = "rf", ntree = 100, 
-    importance = TRUE, trControl = cv)
-summary(rf.fit.model)
-varImpPlot(rf.fit.model)
+summary(rf)
+varImpPlot(rf)
 ```
 
 ```{r}
 #Predictions on Validation Set and Confusion Matrices
-# Logistic Regression
-pred.glm <- predict(glm.fit.pred, valid)
-# Random Forest
-pred.rf <- predict(rf.fit.pred, valid)
-# Logisitic Regression
-cm.glm <- confusionMatrix(valid$Student.Achievement.Rating, pred.glm)
-# Random Forest
-cm.rf <- confusionMatrix(valid$Student.Achievement.Rating, pred.rf)
 
-cm.rf
+# Logistic Full Model
+glm.full.prob <- predict(glm.full, test, type = "response")
+glm.full.pred <- rep("Not Meeting Target", 138)
+glm.full.pred[glm.full.prob > 0.5] <- "Meeting Target"
+cm.full = table(glm.full.pred, test$Student.Achievement.Rating)
+accuracy.full = mean(glm.full.pred == test$Student.Achievement.Rating)
+mce.full = mean(glm.full.pred != test$Student.Achievement.Rating)
+
+# Logistic AIC
+glm.aic.prob <- predict(glm.aic, test, type = "response")
+glm.aic.pred <- rep("Not Meeting Target", 138)
+glm.aic.pred[glm.aic.prob > 0.5] <- "Meeting Target"
+cm.aic = table(glm.full.pred,test$Student.Achievement.Rating)
+accuracy.aic = mean(glm.aic.pred == test$Student.Achievement.Rating)
+mce.aic = mean(glm.aic.pred != test$Student.Achievement.Rating)
+
+#Logistic Ridge
+x.test = test
+x.test$Student.Achievement.Rating = NULL
+x.test$School.Name = NULL
+y.test = test$Student.Achievement.Rating
+x.test=as.matrix(x.test)
+
+glm.ridge.prob <- predict(glm.ridge, s = 4, newx = x.test)
+glm.ridge.pred <- rep("Not Meeting Target", 138)
+glm.ridge.pred[glm.ridge.prob > 0.5] <- "Meeting Target"
+cm.ridge = table(glm.ridge.pred,test$Student.Achievement.Rating)
+accuracy.ridge = mean(glm.ridge.pred == test$Student.Achievement.Rating)
+mce.ridge = mean(glm.ridge.pred != test$Student.Achievement.Rating)
+
+#Logistic Lasso
+glm.lasso.prob <- predict(glm.lasso, s = 4, newx = x.test)
+glm.lasso.pred <- rep("Not Meeting Target", 138)
+glm.lasso.pred[glm.lasso.prob > 0.5] <- "Meeting Target"
+cm.lasso = table(glm.lasso.pred,test$Student.Achievement.Rating)
+accuracy.lasso = mean(glm.lasso.pred == test$Student.Achievement.Rating)
+mce.lasso = mean(glm.lasso.pred != test$Student.Achievement.Rating)
+
+# Random Forest
+print(rf)
+accuracy.rf = .532
+mce.rf = .176
 ```
 
 ```{r}
 #Tabulating Results
-Model <- c("Logistic regression", "Random forest")  # vector containing names of models
+Model <- c("Logit Full Model", "Logit AIC", "Logit Ridge", "Logit Lasso", "Random Forest")  # vector containing names of models
 
-# Training classification accuracy
-TrainAccuracy <- c(max(glm.fit.pred$results$Accuracy), max(rf.fit.pred$results$Accuracy))
+MCE <- c(mce.full, mce.aic, mce.ridge, mce.lasso, mce.rf)
+Accuracy <- c(accuracy.full, accuracy.aic, accuracy.ridge, accuracy.lasso, mce.rf)
 
-# Training misclassification error
-Train_missclass_Error <- 1 - TrainAccuracy
-
-# validation classification accuracy
-ValidationAccuracy <- c(cm.glm$overall[1], 
-    cm.rf$overall[1])
-
-# Validation misclassification error or out-of-sample-error
-Validation_missclass_Error <- 1 - ValidationAccuracy
-
-metrics <- data.frame(Model, TrainAccuracy, Train_missclass_Error, ValidationAccuracy, 
-    Validation_missclass_Error) 
+metrics <- data.frame(Model, MCE, Accuracy) 
 
 knitr::kable(metrics, digits = 5) 
-
-#Prediction on test set
-pred.test.glm <- predict(glm.fit.pred, test)
-pred.test.glm
-pred.test.rf <- predict(rf.fit.pred, test)
-pred.test.rf
 ```
 
 ### Model Selection
 
-Misclassification error is 36% for logistic regression and 41% for random forest. The logistic regression is also easier to interpret. For these reasons, we move ahead with the logistic regression. 
+As we can see, accuracy is the highest with the ordinary logit model after backwards AIC. However, the AIC logit model returned a sparse model with only six covariates. I decided to sacrifice 2% accuracy for the ridge regression model because (1) after reading some papers my prior belief is that all the included covariates have some impact on the response, and (2) ridge regularization handles the collinearity of my covariates better.
 
 ### Model Specification
 
@@ -492,10 +493,6 @@ $$
 
 ### Probabilistic Conclusions for shiny
 ```{r}
-summary(glm.fit.model)
-glm.coef = coef(glm.fit.model)
-glm.coef
-
 #Function to display probability
 logit2prob <- function(logit){
   odds <- exp(logit)
@@ -599,22 +596,22 @@ server <- function(input, output) {
     paste("You have selected", input$selection)
   })
   output$probability_enrollment <- renderText({ 
-    paste("Holding all else equal, this school has a probability of meeting the target of", logit2prob(glm.coef["(Intercept)"] + input$slider_enrollment * glm.coef["Enrollment"]))
+    paste("Holding all else equal, this school has a probability of meeting the target of", round(logit2prob(glm.coef["(Intercept)"] + input$slider_enrollment * glm.coef["Enrollment"]), 3))
   })
   output$probability_asian <- renderText({ 
-    paste("Holding all else equal, this school has a probability of meeting the target of", logit2prob(glm.coef["(Intercept)"] + input$slider_asian * glm.coef["Percent.Asian"]))
+    paste("Holding all else equal, this school has a probability of meeting the target of", round(logit2prob(glm.coef["(Intercept)"] + input$slider_asian * glm.coef["Percent.Asian"]), 3))
   })
   output$probability_black <- renderText({ 
-    paste("Holding all else equal, this school has a probability of meeting the target of", logit2prob(glm.coef["(Intercept)"] + input$slider_black * glm.coef["Percent.Black"]))
+    paste("Holding all else equal, this school has a probability of meeting the target of", round(logit2prob(glm.coef["(Intercept)"] + input$slider_black * glm.coef["Percent.Black"]), 3))
   })
   output$probability_principal <- renderText({ 
-    paste("Holding all else equal, this school has a probability of meeting the target of", logit2prob(glm.coef["(Intercept)"] + input$slider_principal * glm.coef["Principal.Experience.yrs"]))
+    paste("Holding all else equal, this school has a probability of meeting the target of", round(logit2prob(glm.coef["(Intercept)"] + input$slider_principal * glm.coef["Principal.Experience.yrs"]), 3))
   })
   output$probability_economic <- renderText({ 
-    paste("Holding all else equal, this school has a probability of meeting the target of", logit2prob(glm.coef["(Intercept)"] + input$slider_economic * glm.coef["Economic.Need.Index"]))
+    paste("Holding all else equal, this school has a probability of meeting the target of", round(logit2prob(glm.coef["(Intercept)"] + input$slider_economic * glm.coef["Economic.Need.Index"]), 3))
   })
   output$probability_instruction <- renderText({ 
-    paste("Holding all else equal, this school has a probability of meeting the target of", logit2prob(glm.coef["(Intercept)"] + input$slider_instruction * glm.coef["Teachers.Rating.pct"]))
+    paste("Holding all else equal, this school has a probability of meeting the target of", round(logit2prob(glm.coef["(Intercept)"] + input$slider_instruction * glm.coef["Teachers.Rating.pct"]), 3))
   })
   output$enrollment_plot <- renderPlot(p_enrollment + geom_vline(aes(xintercept = input$slider_enrollment), colour = "blue", size = 1))
   output$asian_plot <- renderPlot(p_asian + geom_vline(aes(xintercept = input$slider_asian), colour = "blue", size = 1))
@@ -628,6 +625,10 @@ server <- function(input, output) {
 }
 shinyApp(ui, server)
 ```
+
+```{r}
+```
+
 
 ### Conclusions
 
