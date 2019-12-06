@@ -618,7 +618,7 @@ However, on the whole, my model results are in line with accepted pedagogical do
 
 From the magnitude of the coefficients, it seems that policymakers have their work cut out for them. They should focus on revamping school curriculum, fostering a supportive environment, and find ways to incentivize attendance on both the teacher and student front. With such strategic and targeted investments, New York City can be well on its way to eliminating the performance gap in its high school educational system. 
 
-Find my visualization of my results here: 
+Find my visualization of my results here: https://github.com/alj47/STA440-Individual-CS/blob/master/Austin%20Jia%20Interim%202%20final.Rmd
 
 ```{r, include = FALSE}
 #Function to display probability
