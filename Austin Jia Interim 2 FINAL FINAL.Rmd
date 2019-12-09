@@ -789,7 +789,7 @@ My model yielded several surprising results. A 1% ratings increase in teacher ap
 
 However, on the whole, my model results are in line with accepted pedagogical doctrine. Increasing the Asian, Black, Hispanic, and White composition by 1% changes the odds of a school meeting a target by a multiplicative factor of 6.79, .42, 1.83, and .35, respectively. Overcrowded schools marginally harms its performance; every additional student decreases the odds of a school meeting a target by .01. On student composition, a 1% increase in ESL and Economic Need Index changed the school's odds of meeting a target by multiplicative factors of .28 and .29, respectively. On the subjective metrics, a 1% ratings increase in curriculum, environment supportiveness, and leadership increases the school's odds of meeting a target by factors of 252, 553, and 1.4. Finally, a 1% increase in student and teacher attendance rate increases a school's odds of meeting a target by 21,724 and 2,526,725,418, respectively. 
 
-Find my R Shiny visualization of my results here (run the rmd to the bottom): https://github.com/alj47/STA440-Individual-CS/blob/master/Austin%20Jia%20Interim%202%20final.Rmd
+Find my R Shiny visualization of my results here (run the rmd to the bottom): https://github.com/alj47/STA440-Individual-CS/blob/master/Austin%20Jia%20Interim%202%20FINAL%20FINAL.Rmd
 
 ### 5. Conclusions
 
