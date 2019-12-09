@@ -641,7 +641,7 @@ knitr::kable(metrics, digits = 5)
 cm.ridge
 ```
 
-Accuracy is the highest with the ordinary logistic model. I decided to sacrifice some prediction accuracy in favor of a ridge-regularized logit regression because (1) my prior belief is that all covariates have some impact on the response and (2) ridge regularization handles the collinearity which inflated variance for the ordinary logit. The confusion matrix demonstrates that my model performs fairly, but needs improvement. 
+I chose the ridge-regularized logit regression because (1) prediction accuracy is fair (2) my prior belief is that all covariates have some impact on the response and (3) ridge regularization handles the collinearity which inflated variance for the ordinary logit. The confusion matrix demonstrates that my model performs fairly, but needs improvement. 
 
 ```{r, include=FALSE}
 data.multi$Enrollment = as.numeric(data.multi$Enrollment)
